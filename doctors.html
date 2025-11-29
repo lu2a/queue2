@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صفحة الأطباء - نظام إدارة الانتظار</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .doctor-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .doctor-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .doctor-image {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #fbbf24;
+        }
+        
+        .status-online {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-offline {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .status-busy {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .request-type {
+            transition: all 0.3s ease;
+        }
+        
+        .request-type:hover {
+            transform: translateX(-5px);
+        }
+        
+        .request-type.selected {
+            background: #fbbf24;
+            color: #1e3c72;
+        }
+        
+        .arabic-number {
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal show">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+            <div class="text-center mb-6">
+                <i class="fas fa-user-md text-4xl text-purple-600 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800">دخول الأطباء</h2>
+            </div>
+            <form id="loginForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">البريد الإلكتروني</label>
+                    <input type="email" id="email" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 mb-2">كلمة المرور</label>
+                    <input type="password" id="password" class="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600" required>
+                </div>
+                <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    تسجيل الدخول
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent" class="hidden">
+        <!-- Header -->
+        <div class="bg-white/10 backdrop-blur-md border-b border-white/20 p-6">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-user-md text-3xl text-yellow-300 ml-3"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">صفحة الأطباء</h1>
+                        <p class="text-gray-200 text-sm" id="doctorInfo">مرحباً، <span id="doctorName"></span></p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-yellow-300 arabic-number" id="currentTime"></div>
+                        <div class="text-sm text-gray-300" id="currentDate"></div>
+                    </div>
+                    <button id="logoutBtn" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div class="container mx-auto p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Doctor Profile -->
+                <div class="lg:col-span-1">
+                    <div class="doctor-card rounded-2xl p-6 mb-6">
+                        <div class="text-center">
+                            <img id="doctorImage" src="https://via.placeholder.com/120x120?text=طبيب" alt="Doctor" class="doctor-image mx-auto mb-4">
+                            <h2 class="text-2xl font-bold text-white mb-2" id="profileName">د. أحمد محمد</h2>
+                            <div class="text-yellow-300 mb-2" id="profileSpecialty">طبيب أسنان</div>
+                            <div class="text-sm text-gray-200 mb-4" id="profileClinic">عيادة طب الأسنان</div>
+                            
+                            <!-- Status -->
+                            <div class="mb-4">
+                                <div class="inline-block px-4 py-2 rounded-full text-sm font-bold status-online" id="doctorStatus">
+                                    <i class="fas fa-circle mr-2"></i>
+                                    متصل
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Stats -->
+                            <div class="space-y-2 text-white">
+                                <div class="flex justify-between">
+                                    <span>المواعيد اليوم:</span>
+                                    <span class="text-yellow-300 arabic-number" id="todayAppointments">٨</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>الحضور:</span>
+                                    <span class="text-green-400 arabic-number" id="attendanceCount">٦</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>الغياب:</span>
+                                    <span class="text-red-400 arabic-number" id="absenceCount">٢</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="doctor-card rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-bolt text-yellow-300 mr-2"></i>
+                            إجراءات سريعة
+                        </h3>
+                        <div class="space-y-3">
+                            <button id="attendanceBtn" class="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors">
+                                <i class="fas fa-check mr-2"></i>
+                                تسجيل الحضور
+                            </button>
+                            <button id="leaveBtn" class="w-full bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                                <i class="fas fa-sign-out-alt mr-2"></i>
+                                تسجيل الانصراف
+                            </button>
+                            <button id="breakBtn" class="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 transition-colors">
+                                <i class="fas fa-coffee mr-2"></i>
+                                استراحة
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content -->
+                <div class="lg:col-span-2">
+                    <!-- Tabs -->
+                    <div class="flex space-x-4 mb-6">
+                        <button class="tab-button bg-yellow-400 text-purple-900 px-6 py-3 rounded-lg font-bold" data-tab="appointments">
+                            <i class="fas fa-calendar-alt mr-2"></i>
+                            المواعيد
+                        </button>
+                        <button class="tab-button bg-white/20 text-white px-6 py-3 rounded-lg hover:bg-white/30 transition-colors" data-tab="requests">
+                            <i class="fas fa-clipboard-list mr-2"></i>
+                            الطلبات
+                        </button>
+                        <button class="tab-button bg-white/20 text-white px-6 py-3 rounded-lg hover:bg-white/30 transition-colors" data-tab="consultations">
+                            <i class="fas fa-comments mr-2"></i>
+                            الاستشارات
+                        </button>
+                    </div>
+
+                    <!-- Appointments Tab -->
+                    <div id="appointmentsTab" class="tab-content">
+                        <div class="doctor-card rounded-2xl p-6">
+                            <h3 class="text-xl font-bold text-white mb-4">
+                                <i class="fas fa-calendar-day text-yellow-300 mr-2"></i>
+                                مواعيد اليوم
+                            </h3>
+                            <div id="todayAppointmentsList" class="space-y-3">
+                                <!-- Appointments will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Requests Tab -->
+                    <div id="requestsTab" class="tab-content hidden">
+                        <div class="doctor-card rounded-2xl p-6 mb-6">
+                            <h3 class="text-xl font-bold text-white mb-4">
+                                <i class="fas fa-plus-circle text-yellow-300 mr-2"></i>
+                                تقديم طلب
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div class="request-type bg-white/20 rounded-lg p-4 cursor-pointer" data-type="vacation">
+                                    <i class="fas fa-plane text-2xl text-yellow-300 mb-2"></i>
+                                    <div class="font-bold">إجازة</div>
+                                </div>
+                                <div class="request-type bg-white/20 rounded-lg p-4 cursor-pointer" data-type="permission">
+                                    <i class="fas fa-clock text-2xl text-yellow-300 mb-2"></i>
+                                    <div class="font-bold">إذن</div>
+                                </div>
+                                <div class="request-type bg-white/20 rounded-lg p-4 cursor-pointer" data-type="mission">
+                                    <i class="fas fa-briefcase text-2xl text-yellow-300 mb-2"></i>
+                                    <div class="font-bold">مأمورية</div>
+                                </div>
+                                <div class="request-type bg-white/20 rounded-lg p-4 cursor-pointer" data-type="training">
+                                    <i class="fas fa-graduation-cap text-2xl text-yellow-300 mb-2"></i>
+                                    <div class="font-bold">تدريب</div>
+                                </div>
+                            </div>
+                            
+                            <div id="requestForm" class="hidden space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-white mb-2">من تاريخ</label>
+                                        <input type="date" id="fromDate" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                                    </div>
+                                    <div>
+                                        <label class="block text-white mb-2">إلى تاريخ</label>
+                                        <input type="date" id="toDate" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">القائم بالعمل</label>
+                                    <input type="text" id="replacement" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="اسم الطبيب البديل">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">ملاحظات</label>
+                                    <textarea id="requestNotes" rows="3" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="أدخل أي ملاحظات إضافية"></textarea>
+                                </div>
+                                <div class="flex space-x-4">
+                                    <button id="cancelRequest" class="flex-1 bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors">
+                                        إلغاء
+                                    </button>
+                                    <button id="submitRequest" class="flex-1 bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors">
+                                        <i class="fas fa-paper-plane mr-2"></i>
+                                        إرسال الطلب
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Previous Requests -->
+                        <div class="doctor-card rounded-2xl p-6">
+                            <h3 class="text-xl font-bold text-white mb-4">
+                                <i class="fas fa-history text-yellow-300 mr-2"></i>
+                                الطلبات السابقة
+                            </h3>
+                            <div id="previousRequestsList" class="space-y-3">
+                                <!-- Previous requests will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Consultations Tab -->
+                    <div id="consultationsTab" class="tab-content hidden">
+                        <div class="doctor-card rounded-2xl p-6">
+                            <h3 class="text-xl font-bold text-white mb-4">
+                                <i class="fas fa-stethoscope text-yellow-300 mr-2"></i>
+                                الاستشارات الواردة
+                            </h3>
+                            <div id="consultationsList" class="space-y-4">
+                                <!-- Consultations will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <i class="fas fa-check mr-2"></i>
+        <span id="notificationText">تمت العملية بنجاح</span>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script>
+        let currentDoctor = null;
+        let currentDoctorData = null;
+        let selectedRequestType = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+        });
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Login form
+            document.getElementById('loginForm').addEventListener('submit', login);
+            
+            // Logout
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+            
+            // Tab switching
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', (e) => switchTab(e.target.dataset.tab));
+            });
+            
+            // Quick actions
+            document.getElementById('attendanceBtn').addEventListener('click', markAttendance);
+            document.getElementById('leaveBtn').addEventListener('click', markLeave);
+            document.getElementById('breakBtn').addEventListener('click', takeBreak);
+            
+            // Request types
+            document.querySelectorAll('.request-type').forEach(type => {
+                type.addEventListener('click', (e) => selectRequestType(e.currentTarget.dataset.type));
+            });
+            
+            // Request form
+            document.getElementById('cancelRequest').addEventListener('click', cancelRequestForm);
+            document.getElementById('submitRequest').addEventListener('click', submitRequest);
+            
+            // Confirmation modal
+            document.getElementById('closeConfirmation').addEventListener('click', hideConfirmationModal);
+        }
+
+        // Login
+        function login(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    currentDoctor = userCredential.user.uid;
+                    loadDoctorData();
+                    
+                    document.getElementById('loginModal').classList.remove('show');
+                    document.getElementById('mainContent').classList.remove('hidden');
+                    
+                    showNotification('تم تسجيل الدخول بنجاح');
+                })
+                .catch((error) => {
+                    showNotification('خطأ في تسجيل الدخول: ' + error.message, 'error');
+                });
+        }
+
+        // Load doctor data
+        function loadDoctorData() {
+            doctorsRef.child(currentDoctor).on('value', (snapshot) => {
+                currentDoctorData = snapshot.val();
+                if (currentDoctorData) {
+                    updateDoctorProfile();
+                    loadTodayAppointments();
+                    loadPreviousRequests();
+                    loadConsultations();
+                    updateStats();
+                }
+            });
+        }
+
+        // Update doctor profile
+        function updateDoctorProfile() {
+            document.getElementById('doctorName').textContent = currentDoctorData.name;
+            document.getElementById('profileName').textContent = currentDoctorData.name;
+            document.getElementById('profileSpecialty').textContent = currentDoctorData.specialty;
+            document.getElementById('profileClinic').textContent = currentDoctorData.clinic || 'غير محدد';
+            
+            // Update status
+            const statusElement = document.getElementById('doctorStatus');
+            const statusClass = `status-${currentDoctorData.status || 'online'}`;
+            const statusText = getStatusText(currentDoctorData.status || 'online');
+            
+            statusElement.className = `inline-block px-4 py-2 rounded-full text-sm font-bold ${statusClass}`;
+            statusElement.innerHTML = `<i class="fas fa-circle mr-2"></i>${statusText}`;
+        }
+
+        // Get status text
+        function getStatusText(status) {
+            const statusMap = {
+                'online': 'متصل',
+                'offline': 'غير متصل',
+                'busy': 'مشغول',
+                'break': 'في استراحة'
+            };
+            return statusMap[status] || 'متصل';
+        }
+
+        // Load today's appointments
+        function loadTodayAppointments() {
+            const today = new Date().toISOString().split('T')[0];
+            
+            appointmentsRef.orderByChild('doctor').equalTo(currentDoctor).once('value', (snapshot) => {
+                const appointments = snapshot.val() || {};
+                const todayAppointments = [];
+                
+                Object.values(appointments).forEach(appointment => {
+                    if (appointment.date === today) {
+                        todayAppointments.push(appointment);
+                    }
+                });
+                
+                const appointmentsList = document.getElementById('todayAppointmentsList');
+                appointmentsList.innerHTML = '';
+                
+                if (todayAppointments.length === 0) {
+                    appointmentsList.innerHTML = `
+                        <div class="text-center text-gray-300">
+                            <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                            <p>لا توجد مواعيد اليوم</p>
+                        </div>
+                    `;
+                } else {
+                    todayAppointments.forEach(appointment => {
+                        const appointmentCard = createAppointmentCard(appointment);
+                        appointmentsList.appendChild(appointmentCard);
+                    });
+                }
+            });
+        }
+
+        // Create appointment card
+        function createAppointmentCard(appointment) {
+            const card = document.createElement('div');
+            card.className = 'bg-white/20 rounded-lg p-4 border border-white/30';
+            
+            const timeFormatted = convertToArabicNumbers(appointment.time.replace(':', '։'));
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-white">${appointment.name}</div>
+                        <div class="text-sm text-gray-200">الوقت: ${timeFormatted}</div>
+                        <div class="text-xs text-gray-300">الهاتف: ${appointment.phone}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm text-gray-200">${appointment.visitReason || 'لم يحدد'}</div>
+                        <div class="text-xs ${appointment.confirmed ? 'text-green-400' : 'text-yellow-400'}">
+                            ${appointment.confirmed ? 'مؤكد' : 'قيد الانتظار'}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Load previous requests
+        function loadPreviousRequests() {
+            requestsRef.orderByChild('doctorId').equalTo(currentDoctor).once('value', (snapshot) => {
+                const requests = snapshot.val() || {};
+                const requestsList = document.getElementById('previousRequestsList');
+                requestsList.innerHTML = '';
+                
+                if (Object.keys(requests).length === 0) {
+                    requestsList.innerHTML = `
+                        <div class="text-center text-gray-300">
+                            <i class="fas fa-clipboard-list text-2xl mb-2"></i>
+                            <p>لا توجد طلبات سابقة</p>
+                        </div>
+                    `;
+                } else {
+                    Object.values(requests).reverse().forEach(request => {
+                        const requestCard = createRequestCard(request);
+                        requestsList.appendChild(requestCard);
+                    });
+                }
+            });
+        }
+
+        // Create request card
+        function createRequestCard(request) {
+            const card = document.createElement('div');
+            card.className = 'bg-white/20 rounded-lg p-4 border border-white/30';
+            
+            const typeText = getRequestTypeText(request.type);
+            const statusColor = request.status === 'approved' ? 'text-green-400' : 
+                               request.status === 'rejected' ? 'text-red-400' : 'text-yellow-400';
+            const statusText = getRequestStatusText(request.status);
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-white">${typeText}</div>
+                        <div class="text-sm text-gray-200">من: ${new Date(request.fromDate).toLocaleDateString('ar-SA')}</div>
+                        <div class="text-sm text-gray-200">إلى: ${new Date(request.toDate).toLocaleDateString('ar-SA')}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm ${statusColor}">${statusText}</div>
+                        <div class="text-xs text-gray-300">${new Date(request.timestamp).toLocaleDateString('ar-SA')}</div>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Load consultations
+        function loadConsultations() {
+            consultationsRef.orderByChild('doctorId').equalTo(currentDoctor).once('value', (snapshot) => {
+                const consultations = snapshot.val() || {};
+                const consultationsList = document.getElementById('consultationsList');
+                consultationsList.innerHTML = '';
+                
+                if (Object.keys(consultations).length === 0) {
+                    consultationsList.innerHTML = `
+                        <div class="text-center text-gray-300">
+                            <i class="fas fa-comments text-2xl mb-2"></i>
+                            <p>لا توجد استشارات جديدة</p>
+                        </div>
+                    `;
+                } else {
+                    Object.values(consultations).reverse().forEach(consultation => {
+                        const consultationCard = createConsultationCard(consultation);
+                        consultationsList.appendChild(consultationCard);
+                    });
+                }
+            });
+        }
+
+        // Create consultation card
+        function createConsultationCard(consultation) {
+            const card = document.createElement('div');
+            card.className = 'bg-white/20 rounded-lg p-4 border border-white/30';
+            
+            const statusColor = consultation.status === 'closed' ? 'text-gray-400' : 'text-green-400';
+            const statusText = consultation.status === 'closed' ? 'مغلقة' : 'مفتوحة';
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <div class="font-bold text-white">${consultation.patientName}</div>
+                        <div class="text-sm text-gray-200">${consultation.specialty}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm ${statusColor}">${statusText}</div>
+                        <div class="text-xs text-gray-300">${new Date(consultation.timestamp).toLocaleDateString('ar-SA')}</div>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-200 mb-3">${consultation.complaint}</div>
+                ${consultation.status === 'open' ? `
+                    <div class="flex space-x-2">
+                        <button class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors" onclick="replyToConsultation('${consultation.id}')">
+                            <i class="fas fa-reply mr-1"></i>
+                            رد
+                        </button>
+                        <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors" onclick="viewPatientFile('${consultation.patientId}')">
+                            <i class="fas fa-file-medical mr-1"></i>
+                            الملف
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+            
+            return card;
+        }
+
+        // Switch tab
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('bg-yellow-400', 'text-purple-900');
+                button.classList.add('bg-white/20', 'text-white');
+            });
+            
+            document.querySelector(`[data-tab="${tabName}"]`).classList.remove('bg-white/20', 'text-white');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('bg-yellow-400', 'text-purple-900');
+            
+            // Show/hide tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            document.getElementById(`${tabName}Tab`).classList.remove('hidden');
+        }
+
+        // Mark attendance
+        function markAttendance() {
+            const attendanceData = {
+                doctorId: currentDoctor,
+                doctorName: currentDoctorData.name,
+                action: 'attendance',
+                timestamp: new Date().toISOString(),
+                date: new Date().toISOString().split('T')[0]
+            };
+            
+            attendanceRef.push(attendanceData)
+                .then(() => {
+                    doctorsRef.child(currentDoctor).update({ status: 'online' });
+                    showNotification('تم تسجيل الحضور بنجاح');
+                })
+                .catch((error) => {
+                    showNotification('خطأ في تسجيل الحضور: ' + error.message, 'error');
+                });
+        }
+
+        // Mark leave
+        function markLeave() {
+            const leaveData = {
+                doctorId: currentDoctor,
+                doctorName: currentDoctorData.name,
+                action: 'leave',
+                timestamp: new Date().toISOString(),
+                date: new Date().toISOString().split('T')[0]
+            };
+            
+            attendanceRef.push(leaveData)
+                .then(() => {
+                    doctorsRef.child(currentDoctor).update({ status: 'offline' });
+                    showNotification('تم تسجيل الانصراف بنجاح');
+                })
+                .catch((error) => {
+                    showNotification('خطأ في تسجيل الانصراف: ' + error.message, 'error');
+                });
+        }
+
+        // Take break
+        function takeBreak() {
+            doctorsRef.child(currentDoctor).update({ status: 'break' })
+                .then(() => {
+                    showNotification('تم تغيير الحالة إلى استراحة');
+                })
+                .catch((error) => {
+                    showNotification('خطأ: ' + error.message, 'error');
+                });
+        }
+
+        // Select request type
+        function selectRequestType(type) {
+            // Remove previous selection
+            document.querySelectorAll('.request-type').forEach(t => {
+                t.classList.remove('selected');
+            });
+            
+            // Add selection
+            document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+            selectedRequestType = type;
+            
+            // Show request form
+            document.getElementById('requestForm').classList.remove('hidden');
+        }
+
+        // Cancel request form
+        function cancelRequestForm() {
+            document.getElementById('requestForm').classList.add('hidden');
+            document.querySelectorAll('.request-type').forEach(t => {
+                t.classList.remove('selected');
+            });
+            selectedRequestType = null;
+        }
+
+        // Submit request
+        function submitRequest() {
+            if (!selectedRequestType) {
+                showNotification('يرجى اختيار نوع الطلب', 'error');
+                return;
+            }
+            
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+            const replacement = document.getElementById('replacement').value;
+            const notes = document.getElementById('requestNotes').value;
+            
+            if (!fromDate || !toDate) {
+                showNotification('يرجى تحديد تواريخ الطلب', 'error');
+                return;
+            }
+            
+            const requestData = {
+                doctorId: currentDoctor,
+                doctorName: currentDoctorData.name,
+                type: selectedRequestType,
+                fromDate: fromDate,
+                toDate: toDate,
+                replacement: replacement,
+                notes: notes,
+                status: 'pending',
+                timestamp: new Date().toISOString()
+            };
+            
+            requestsRef.push(requestData)
+                .then(() => {
+                    showNotification('تم إرسال الطلب بنجاح');
+                    cancelRequestForm();
+                    loadPreviousRequests();
+                })
+                .catch((error) => {
+                    showNotification('خطأ في إرسال الطلب: ' + error.message, 'error');
+                });
+        }
+
+        // Get request type text
+        function getRequestTypeText(type) {
+            const typeMap = {
+                'vacation': 'إجازة',
+                'permission': 'إذن',
+                'mission': 'مأمورية',
+                'training': 'تدريب'
+            };
+            return typeMap[type] || type;
+        }
+
+        // Get request status text
+        function getRequestStatusText(status) {
+            const statusMap = {
+                'pending': 'قيد الانتظار',
+                'approved': 'معتمد',
+                'rejected': 'مرفوض'
+            };
+            return statusMap[status] || status;
+        }
+
+        // Update stats
+        function updateStats() {
+            // This would calculate real stats from data
+            // For now, using static values
+            const today = new Date().toISOString().split('T')[0];
+            
+            appointmentsRef.orderByChild('doctor').equalTo(currentDoctor).once('value', (snapshot) => {
+                const appointments = snapshot.val() || {};
+                let todayCount = 0;
+                
+                Object.values(appointments).forEach(appointment => {
+                    if (appointment.date === today) {
+                        todayCount++;
+                    }
+                });
+                
+                document.getElementById('todayAppointments').textContent = convertToArabicNumbers(todayCount);
+            });
+        }
+
+        // Logout
+        function logout() {
+            auth.signOut().then(() => {
+                currentDoctor = null;
+                currentDoctorData = null;
+                
+                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('loginModal').classList.add('show');
+                
+                document.getElementById('loginForm').reset();
+                showNotification('تم تسجيل الخروج');
+            });
+        }
+
+        // Update date and time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ar-SA');
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('ar-SA', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Show notification
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notificationText.textContent = message;
+            notification.className = `notification ${type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white px-6 py-3 rounded-lg shadow-lg show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Placeholder functions for consultation actions
+        function replyToConsultation(consultationId) {
+            showNotification('تم فتح نافذة الرد على الاستشارة');
+        }
+
+        function viewPatientFile(patientId) {
+            showNotification('تم فتح ملف المريض');
+        }
+
+        function hideConfirmationModal() {
+            document.getElementById('confirmationModal').classList.remove('show');
+        }
+
+        // Initialize animations
+        anime({
+            targets: '.doctor-card',
+            translateY: [50, 0],
+            opacity: [0, 1],
+            delay: anime.stagger(200),
+            duration: 800,
+            easing: 'easeOutQuart'
+        });
+    </script>
+</body>
+</html>

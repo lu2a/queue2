@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الاستشارات الطبية - نظام إدارة الانتظار</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .form-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .step {
+            display: none;
+        }
+        
+        .step.active {
+            display: block;
+        }
+        
+        .step-indicator {
+            transition: all 0.3s ease;
+        }
+        
+        .step-indicator.active {
+            background: #fbbf24;
+            color: #1e3c72;
+            transform: scale(1.1);
+        }
+        
+        .step-indicator.completed {
+            background: #10b981;
+            color: white;
+        }
+        
+        .consultation-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .consultation-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .status-pending {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .status-replied {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-closed {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .arabic-number {
+            font-family: 'Cairo', sans-serif;
+            font-weight: 700;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .checkbox-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .checkbox-item:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .checkbox-item.selected {
+            background: #fbbf24;
+            color: #1e3c72;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="bg-white/10 backdrop-blur-md border-b border-white/20 p-6">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <i class="fas fa-stethoscope text-3xl text-yellow-300 ml-3"></i>
+                <div>
+                    <h1 class="text-2xl font-bold text-white">الاستشارات الطبية</h1>
+                    <p class="text-gray-200 text-sm">تواصل مع أطبائنا بسهولة وسرية</p>
+                </div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-yellow-300 arabic-number" id="currentTime"></div>
+                <div class="text-sm text-gray-300" id="currentDate"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Registration Form -->
+            <div class="lg:col-span-2">
+                <div class="form-container rounded-2xl p-8">
+                    <h2 class="text-3xl font-bold text-white mb-8 text-center">
+                        <i class="fas fa-user-plus text-yellow-300 mr-3"></i>
+                        التسجيل والاستشارة
+                    </h2>
+                    
+                    <!-- Step Indicator -->
+                    <div class="flex justify-center mb-8">
+                        <div class="flex space-x-4">
+                            <div class="step-indicator active w-10 h-10 rounded-full flex items-center justify-center font-bold" data-step="1">1</div>
+                            <div class="step-indicator w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold" data-step="2">2</div>
+                            <div class="step-indicator w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold" data-step="3">3</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Personal Information -->
+                    <div id="step1" class="step active">
+                        <h3 class="text-xl font-bold text-white mb-6">المعلومات الشخصية</h3>
+                        <div class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">الاسم رباعي *</label>
+                                    <input type="text" id="patientName" required maxlength="50" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="أدخل اسمك الرباعي">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">الرقم القومي *</label>
+                                    <input type="text" id="nationalId" required maxlength="14" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="أدخل رقمك القومي">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">رقم التليفون *</label>
+                                    <input type="tel" id="phoneNumber" required class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="أدخل رقم تليفونك">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">البريد الإلكتروني</label>
+                                    <input type="email" id="email" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="أدخل بريدك الإلكتروني">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">النوع *</label>
+                                    <select id="gender" required class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                                        <option value="">-- اختر --</option>
+                                        <option value="male">ذكر</option>
+                                        <option value="female">أنثى</option>
+                                        <option value="child">طفل</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">عدد أفراد الأسرة</label>
+                                    <select id="familySize" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                                        <option value="0">٠</option>
+                                        <option value="1">١</option>
+                                        <option value="2">٢</option>
+                                        <option value="3">٣</option>
+                                        <option value="4">٤</option>
+                                        <option value="5">٥</option>
+                                        <option value="6">٦</option>
+                                        <option value="7">٧</option>
+                                        <option value="8">٨</option>
+                                        <option value="9">٩</option>
+                                        <option value="10">١٠</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">العمر</label>
+                                    <input type="number" id="age" min="1" max="120" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="العمر">
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="button" onclick="nextStep()" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                                    التالي <i class="fas fa-arrow-left mr-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Medical History -->
+                    <div id="step2" class="step">
+                        <h3 class="text-xl font-bold text-white mb-6">التاريخ المرضي</h3>
+                        <div class="space-y-6">
+                            <!-- Chronic Diseases -->
+                            <div>
+                                <label class="block text-white mb-3">الأمراض المزمنة (اختر إن وجدت)</label>
+                                <div class="checkbox-grid">
+                                    <div class="checkbox-item" data-disease="diabetes">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>سكر</span>
+                                    </div>
+                                    <div class="checkbox-item" data-disease="hypertension">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>ضغط</span>
+                                    </div>
+                                    <div class="checkbox-item" data-disease="cancer">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>أورام</span>
+                                    </div>
+                                    <div class="checkbox-item" data-disease="liver">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>كبد</span>
+                                    </div>
+                                    <div class="checkbox-item" data-disease="kidney">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>كلى</span>
+                                    </div>
+                                    <div class="checkbox-item" data-disease="other">
+                                        <i class="fas fa-check-circle mr-2"></i>
+                                        <span>أخرى</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Pregnancy and Breastfeeding -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">هل يوجد حمل؟</label>
+                                    <div class="flex space-x-4">
+                                        <label class="flex items-center text-white">
+                                            <input type="radio" name="pregnancy" value="yes" class="ml-2">
+                                            نعم
+                                        </label>
+                                        <label class="flex items-center text-white">
+                                            <input type="radio" name="pregnancy" value="no" class="ml-2">
+                                            لا
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">هل يوجد رضاعة؟</label>
+                                    <div class="flex space-x-4">
+                                        <label class="flex items-center text-white">
+                                            <input type="radio" name="breastfeeding" value="yes" class="ml-2">
+                                            نعم
+                                        </label>
+                                        <label class="flex items-center text-white">
+                                            <input type="radio" name="breastfeeding" value="no" class="ml-2">
+                                            لا
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Previous Operations -->
+                            <div>
+                                <label class="block text-white mb-2">هل تمت عمليات سابقة؟</label>
+                                <div class="flex space-x-4 mb-3">
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="operations" value="yes" class="ml-2">
+                                        نعم
+                                    </label>
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="operations" value="no" class="ml-2">
+                                        لا
+                                    </label>
+                                </div>
+                                <textarea id="operationsDetails" rows="2" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="ذكر نوع العمليات إن وجدت"></textarea>
+                            </div>
+
+                            <!-- Drug Allergies -->
+                            <div>
+                                <label class="block text-white mb-2">هل يوجد حساسية من أدوية؟</label>
+                                <div class="flex space-x-4 mb-3">
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="allergies" value="yes" class="ml-2">
+                                        نعم
+                                    </label>
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="allergies" value="no" class="ml-2">
+                                        لا
+                                    </label>
+                                </div>
+                                <textarea id="allergiesDetails" rows="2" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="ذكر نوع الحساسية إن وجدت"></textarea>
+                            </div>
+
+                            <!-- Current Medications -->
+                            <div>
+                                <label class="block text-white mb-2">هل تتناول أدوية حالياً؟</label>
+                                <div class="flex space-x-4 mb-3">
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="medications" value="yes" class="ml-2">
+                                        نعم
+                                    </label>
+                                    <label class="flex items-center text-white">
+                                        <input type="radio" name="medications" value="no" class="ml-2">
+                                        لا
+                                    </label>
+                                </div>
+                                <textarea id="medicationsDetails" rows="2" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="ذكر الأدوية التي تتناولها"></textarea>
+                            </div>
+
+                            <div class="flex justify-between">
+                                <button type="button" onclick="prevStep()" class="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors">
+                                    <i class="fas fa-arrow-right mr-2"></i> السابق
+                                </button>
+                                <button type="button" onclick="nextStep()" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
+                                    التالي <i class="fas fa-arrow-left mr-2"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Consultation Details -->
+                    <div id="step3" class="step">
+                        <h3 class="text-xl font-bold text-white mb-6">تفاصيل الاستشارة</h3>
+                        <div class="space-y-6">
+                            <!-- Vital Signs -->
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">ضغط الدم</label>
+                                    <input type="text" id="bloodPressure" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="مثال: 120/80">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">درجة الحرارة</label>
+                                    <input type="number" id="temperature" step="0.1" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="مثال: 37.5">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">النبض</label>
+                                    <input type="number" id="pulse" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="نبضات/دقيقة">
+                                </div>
+                            </div>
+
+                            <!-- Physical Measurements -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-white mb-2">الوزن (كجم)</label>
+                                    <input type="number" id="weight" step="0.1" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="الوزن بالكيلوجرام">
+                                </div>
+                                <div>
+                                    <label class="block text-white mb-2">الطول (سم)</label>
+                                    <input type="number" id="height" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="الطول بالسنتيمتر">
+                                </div>
+                            </div>
+
+                            <!-- Specialty Selection -->
+                            <div>
+                                <label class="block text-white mb-2">التخصص المطلوب *</label>
+                                <select id="specialty" required class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-300">
+                                    <option value="">-- اختر التخصص --</option>
+                                </select>
+                            </div>
+
+                            <!-- Complaint Details -->
+                            <div>
+                                <label class="block text-white mb-2">نص الشكوى *</label>
+                                <textarea id="complaint" required rows="4" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="اشرح بالتفصيل الشكوى التي تعاني منها"></textarea>
+                            </div>
+
+                            <!-- Symptoms -->
+                            <div>
+                                <label class="block text-white mb-2">الأعراض الحالية</label>
+                                <textarea id="symptoms" rows="3" class="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-300" placeholder="ذكر الأعراض التي تشعر بها حالياً"></textarea>
+                            </div>
+
+                            <div class="flex justify-between">
+                                <button type="button" onclick="prevStep()" class="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors">
+                                    <i class="fas fa-arrow-right mr-2"></i> السابق
+                                </button>
+                                <button type="submit" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition-colors">
+                                    <i class="fas fa-paper-plane mr-2"></i>
+                                    إرسال الاستشارة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="space-y-6">
+                <!-- Consultation Status -->
+                <div class="form-container rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-info-circle text-yellow-300 mr-2"></i>
+                        معلومات الاستشارة
+                    </h3>
+                    <div class="space-y-3 text-white">
+                        <div class="flex justify-between">
+                            <span>الرد خلال:</span>
+                            <span class="text-yellow-300">٢٤ ساعة</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>السرية:</span>
+                            <span class="text-green-400">مضمونة</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>التكلفة:</span>
+                            <span class="text-green-400">مجاناً</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>عدد الاستشارات اليوم:</span>
+                            <span class="text-yellow-300 arabic-number" id="todayConsultations">١٢</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Available Specialties -->
+                <div class="form-container rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-user-md text-yellow-300 mr-2"></i>
+                        التخصصات المتاحة
+                    </h3>
+                    <div id="specialtiesList" class="space-y-2 text-white">
+                        <!-- Specialties will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Recent Consultations -->
+                <div class="form-container rounded-2xl p-6">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-history text-yellow-300 mr-2"></i>
+                        استشاراتك السابقة
+                    </h3>
+                    <div id="myConsultations" class="space-y-3">
+                        <!-- User consultations will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consultation Modal -->
+    <div id="consultationModal" class="modal">
+        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+            <div class="text-center mb-6">
+                <i class="fas fa-file-medical text-4xl text-purple-600 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800">تفاصيل الاستشارة</h2>
+            </div>
+            
+            <div id="consultationDetails" class="space-y-4 text-gray-700">
+                <!-- Consultation details will be shown here -->
+            </div>
+            
+            <div class="text-center mt-6">
+                <button id="closeConsultation" class="bg-purple-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-purple-700 transition-colors">
+                    <i class="fas fa-check mr-2"></i>
+                    فهمت
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <i class="fas fa-check mr-2"></i>
+        <span id="notificationText">تمت العملية بنجاح</span>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script>
+        let currentStep = 1;
+        let selectedDiseases = [];
+        let userId = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSpecialties();
+            setupEventListeners();
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            loadConsultationStats();
+            checkUserSession();
+        });
+
+        // Load specialties
+        function loadSpecialties() {
+            clinicsRef.on('value', (snapshot) => {
+                const clinics = snapshot.val() || {};
+                const specialtySelect = document.getElementById('specialty');
+                const specialtiesList = document.getElementById('specialtiesList');
+                
+                specialtySelect.innerHTML = '<option value="">-- اختر التخصص --</option>';
+                specialtiesList.innerHTML = '';
+                
+                const specialties = new Set();
+                
+                Object.values(clinics).forEach(clinic => {
+                    if (clinic.specialty && !specialties.has(clinic.specialty)) {
+                        specialties.add(clinic.specialty);
+                        
+                        // Add to select
+                        const option = document.createElement('option');
+                        option.value = clinic.specialty;
+                        option.textContent = clinic.specialty;
+                        specialtySelect.appendChild(option);
+                        
+                        // Add to list
+                        const listItem = document.createElement('div');
+                        listItem.className = 'flex justify-between items-center';
+                        listItem.innerHTML = `
+                            <span>${clinic.specialty}</span>
+                            <span class="text-green-400 text-sm">
+                                <i class="fas fa-circle mr-1"></i>
+                                متاح
+                            </span>
+                        `;
+                        specialtiesList.appendChild(listItem);
+                    }
+                });
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Form submission
+            document.getElementById('bookingForm').addEventListener('submit', submitConsultation);
+            
+            // Disease selection
+            document.querySelectorAll('.checkbox-item').forEach(item => {
+                item.addEventListener('click', () => toggleDisease(item));
+            });
+            
+            // Modal close
+            document.getElementById('closeConsultation').addEventListener('click', hideConsultationModal);
+        }
+
+        // Step navigation
+        function nextStep() {
+            if (validateCurrentStep()) {
+                currentStep++;
+                updateStepDisplay();
+            }
+        }
+
+        function prevStep() {
+            currentStep--;
+            updateStepDisplay();
+        }
+
+        function updateStepDisplay() {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active');
+            });
+            
+            // Show current step
+            document.getElementById(`step${currentStep}`).classList.add('active');
+            
+            // Update step indicators
+            document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+                const stepNumber = index + 1;
+                indicator.classList.remove('active', 'completed');
+                
+                if (stepNumber === currentStep) {
+                    indicator.classList.add('active');
+                } else if (stepNumber < currentStep) {
+                    indicator.classList.add('completed');
+                }
+            });
+        }
+
+        function validateCurrentStep() {
+            switch(currentStep) {
+                case 1:
+                    const name = document.getElementById('patientName').value;
+                    const nationalId = document.getElementById('nationalId').value;
+                    const phone = document.getElementById('phoneNumber').value;
+                    const gender = document.getElementById('gender').value;
+                    
+                    if (!name || !nationalId || !phone || !gender) {
+                        showNotification('يرجى ملء جميع الحقول المطلوبة', 'error');
+                        return false;
+                    }
+                    
+                    if (nationalId.length !== 14) {
+                        showNotification('الرقم القومي يجب أن يكون 14 رقم', 'error');
+                        return false;
+                    }
+                    break;
+                    
+                case 2:
+                    // Step 2 is optional, so always valid
+                    break;
+                    
+                case 3:
+                    const specialty = document.getElementById('specialty').value;
+                    const complaint = document.getElementById('complaint').value;
+                    
+                    if (!specialty || !complaint) {
+                        showNotification('يرجى اختيار التخصص وكتابة الشكوى', 'error');
+                        return false;
+                    }
+                    break;
+            }
+            return true;
+        }
+
+        // Toggle disease selection
+        function toggleDisease(item) {
+            const disease = item.dataset.disease;
+            
+            if (item.classList.contains('selected')) {
+                item.classList.remove('selected');
+                selectedDiseases = selectedDiseases.filter(d => d !== disease);
+            } else {
+                item.classList.add('selected');
+                selectedDiseases.push(disease);
+            }
+        }
+
+        // Submit consultation
+        function submitConsultation(e) {
+            e.preventDefault();
+            
+            if (!validateCurrentStep()) {
+                return;
+            }
+            
+            // Generate user ID if new user
+            if (!userId) {
+                userId = 'user_' + Date.now();
+                localStorage.setItem('userId', userId);
+            }
+            
+            const consultationData = {
+                userId: userId,
+                patientName: document.getElementById('patientName').value,
+                nationalId: document.getElementById('nationalId').value,
+                phone: document.getElementById('phoneNumber').value,
+                email: document.getElementById('email').value,
+                gender: document.getElementById('gender').value,
+                age: document.getElementById('age').value,
+                familySize: document.getElementById('familySize').value,
+                chronicDiseases: selectedDiseases,
+                pregnancy: document.querySelector('input[name="pregnancy"]:checked')?.value,
+                breastfeeding: document.querySelector('input[name="breastfeeding"]:checked')?.value,
+                operations: document.querySelector('input[name="operations"]:checked')?.value,
+                operationsDetails: document.getElementById('operationsDetails').value,
+                allergies: document.querySelector('input[name="allergies"]:checked')?.value,
+                allergiesDetails: document.getElementById('allergiesDetails').value,
+                medications: document.querySelector('input[name="medications"]:checked')?.value,
+                medicationsDetails: document.getElementById('medicationsDetails').value,
+                bloodPressure: document.getElementById('bloodPressure').value,
+                temperature: document.getElementById('temperature').value,
+                pulse: document.getElementById('pulse').value,
+                weight: document.getElementById('weight').value,
+                height: document.getElementById('height').value,
+                specialty: document.getElementById('specialty').value,
+                complaint: document.getElementById('complaint').value,
+                symptoms: document.getElementById('symptoms').value,
+                status: 'pending',
+                timestamp: new Date().toISOString()
+            };
+            
+            // Save to Firebase
+            consultationsRef.push(consultationData)
+                .then(() => {
+                    showConfirmationModal(consultationData);
+                    showNotification('تم إرسال الاستشارة بنجاح');
+                    resetForm();
+                })
+                .catch((error) => {
+                    showNotification('خطأ في الإرسال: ' + error.message, 'error');
+                });
+        }
+
+        // Show confirmation modal
+        function showConfirmationModal(consultationData) {
+            const modal = document.getElementById('consultationModal');
+            const details = document.getElementById('consultationDetails');
+            
+            details.innerHTML = `
+                <div class="text-right">
+                    <div class="mb-2"><strong>الاسم:</strong> ${consultationData.patientName}</div>
+                    <div class="mb-2"><strong>التخصص:</strong> ${consultationData.specialty}</div>
+                    <div class="mb-2"><strong>تاريخ الإرسال:</strong> ${new Date(consultationData.timestamp).toLocaleDateString('ar-SA')}</div>
+                    <div class="mb-2"><strong>رقم التليفون:</strong> ${consultationData.phone}</div>
+                    <div class="mb-2"><strong>حالة الاستشارة:</strong> <span class="text-yellow-600">قيد المراجعة</span></div>
+                    <div class="mt-4 p-3 bg-gray-100 rounded-lg">
+                        <strong>ملاحظة:</strong> سيتم الرد على استشارتك خلال 24 ساعة من خلال رقم تليفونك أو بريدك الإلكتروني.
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('show');
+        }
+
+        // Hide consultation modal
+        function hideConsultationModal() {
+            document.getElementById('consultationModal').classList.remove('show');
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('bookingForm').reset();
+            selectedDiseases = [];
+            currentStep = 1;
+            updateStepDisplay();
+            
+            // Clear selections
+            document.querySelectorAll('.checkbox-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+
+        // Load consultation stats
+        function loadConsultationStats() {
+            const today = new Date().toISOString().split('T')[0];
+            
+            consultationsRef.once('value', (snapshot) => {
+                const consultations = snapshot.val() || {};
+                let todayCount = 0;
+                
+                Object.values(consultations).forEach(consultation => {
+                    if (consultation.timestamp && consultation.timestamp.startsWith(today)) {
+                        todayCount++;
+                    }
+                });
+                
+                document.getElementById('todayConsultations').textContent = convertToArabicNumbers(todayCount);
+            });
+        }
+
+        // Load my consultations
+        function loadMyConsultations() {
+            if (!userId) return;
+            
+            consultationsRef.orderByChild('userId').equalTo(userId).once('value', (snapshot) => {
+                const consultations = snapshot.val() || {};
+                const myConsultations = document.getElementById('myConsultations');
+                myConsultations.innerHTML = '';
+                
+                if (Object.keys(consultations).length === 0) {
+                    myConsultations.innerHTML = `
+                        <div class="text-center text-gray-300">
+                            <i class="fas fa-comments text-2xl mb-2"></i>
+                            <p>لا توجد استشارات سابقة</p>
+                        </div>
+                    `;
+                } else {
+                    Object.values(consultations).reverse().forEach(consultation => {
+                        const consultationCard = createMyConsultationCard(consultation);
+                        myConsultations.appendChild(consultationCard);
+                    });
+                }
+            });
+        }
+
+        // Create my consultation card
+        function createMyConsultationCard(consultation) {
+            const card = document.createElement('div');
+            card.className = 'bg-white/20 rounded-lg p-3 border border-white/30 cursor-pointer';
+            card.onclick = () => showConsultationDetails(consultation);
+            
+            const statusClass = `status-${consultation.status}`;
+            const statusText = getConsultationStatusText(consultation.status);
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <div class="font-bold text-white text-sm">${consultation.specialty}</div>
+                    <div class="text-xs ${statusClass} px-2 py-1 rounded">${statusText}</div>
+                </div>
+                <div class="text-xs text-gray-200 mb-1">${consultation.complaint.substring(0, 50)}...</div>
+                <div class="text-xs text-gray-300">${new Date(consultation.timestamp).toLocaleDateString('ar-SA')}</div>
+            `;
+            
+            return card;
+        }
+
+        // Show consultation details
+        function showConsultationDetails(consultation) {
+            const modal = document.getElementById('consultationModal');
+            const details = document.getElementById('consultationDetails');
+            
+            details.innerHTML = `
+                <div class="text-right">
+                    <div class="mb-2"><strong>التخصص:</strong> ${consultation.specialty}</div>
+                    <div class="mb-2"><strong>تاريخ الإرسال:</strong> ${new Date(consultation.timestamp).toLocaleDateString('ar-SA')}</div>
+                    <div class="mb-2"><strong>الحالة:</strong> <span class="status-${consultation.status}">${getConsultationStatusText(consultation.status)}</span></div>
+                    <div class="mb-2"><strong>الشكوى:</strong></div>
+                    <div class="mb-4 p-3 bg-gray-100 rounded-lg">${consultation.complaint}</div>
+                    ${consultation.symptoms ? `
+                        <div class="mb-2"><strong>الأعراض:</strong></div>
+                        <div class="mb-4 p-3 bg-gray-100 rounded-lg">${consultation.symptoms}</div>
+                    ` : ''}
+                    ${consultation.reply ? `
+                        <div class="mb-2"><strong>رد الطبيب:</strong></div>
+                        <div class="mb-4 p-3 bg-green-100 rounded-lg">${consultation.reply}</div>
+                    ` : ''}
+                </div>
+            `;
+            
+            modal.classList.add('show');
+        }
+
+        // Get consultation status text
+        function getConsultationStatusText(status) {
+            const statusMap = {
+                'pending': 'قيد المراجعة',
+                'replied': 'تم الرد',
+                'closed': 'مغلقة'
+            };
+            return statusMap[status] || status;
+        }
+
+        // Check user session
+        function checkUserSession() {
+            userId = localStorage.getItem('userId');
+            if (userId) {
+                loadMyConsultations();
+            }
+        }
+
+        // Update date and time
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('ar-SA');
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('ar-SA', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Show notification
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notificationText');
+            
+            notificationText.textContent = message;
+            notification.className = `notification ${type === 'error' ? 'bg-red-500' : 'bg-green-500'} text-white px-6 py-3 rounded-lg shadow-lg show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        // Initialize animations
+        anime({
+            targets: '.form-container',
+            translateY: [50, 0],
+            opacity: [0, 1],
+            delay: anime.stagger(200),
+            duration: 800,
+            easing: 'easeOutQuart'
+        });
+    </script>
+</body>
+</html>
